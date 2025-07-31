@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { LogOut, Vote, Check, BarChart3, Settings } from 'lucide-react'
+import { LogOut, Vote, Check, BarChart3 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 interface VotingInterfaceProps {
   voter: { id: string; name: string; address: string; voted_for: string | null }
   onLogout: () => void
-  onShowAdmin: () => void
 }
 
 interface VoteCount {
@@ -26,7 +25,7 @@ const CANDIDATES = [
   'Arnold', 'Fandy', 'Ilham Dwi', 'Efendi', 'Syafiyyah', 'Benedecta'
 ]
 
-export function VotingInterface({ voter, onLogout, onShowAdmin }: VotingInterfaceProps) {
+export function VotingInterface({ voter, onLogout }: VotingInterfaceProps) {
   const [hasVoted, setHasVoted] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null)
   const [voteCounts, setVoteCounts] = useState<VoteCount[]>([])
@@ -241,13 +240,6 @@ export function VotingInterface({ voter, onLogout, onShowAdmin }: VotingInterfac
                 <span>Total Suara: {totalVotes}</span>
               </div>
             </div>
-            <button
-              onClick={onShowAdmin}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              Admin
-            </button>
             <button
               onClick={onLogout}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"

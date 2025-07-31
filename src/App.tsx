@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { LoginForm } from './components/LoginForm'
 import { VotingInterface } from './components/VotingInterface'
-import { AdminView } from './components/AdminView'
 import { testSupabaseConnection, isSupabaseConfigured } from './lib/supabase'
 
 interface Voter {
@@ -14,7 +13,6 @@ interface Voter {
 function App() {
   const [voter, setVoter] = useState<Voter | null>(null)
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
-  const [showAdmin, setShowAdmin] = useState(false)
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -34,14 +32,6 @@ function App() {
 
   const handleLogout = () => {
     setVoter(null)
-  }
-
-  const handleShowAdmin = () => {
-    setShowAdmin(true)
-  }
-
-  const handleBackFromAdmin = () => {
-    setShowAdmin(false)
   }
 
   // Tampilkan loading saat mengecek koneksi
@@ -102,12 +92,10 @@ function App() {
 
   return (
     <div className="App">
-      {showAdmin ? (
-        <AdminView onBack={handleBackFromAdmin} />
-      ) : voter ? (
-        <VotingInterface voter={voter} onLogout={handleLogout} onShowAdmin={handleShowAdmin} />
+      {voter ? (
+        <VotingInterface voter={voter} onLogout={handleLogout} />
       ) : (
-        <LoginForm onLogin={handleLogin} onShowAdmin={handleShowAdmin} />
+        <LoginForm onLogin={handleLogin} />
       )}
     </div>
   )
