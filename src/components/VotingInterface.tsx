@@ -40,35 +40,9 @@ export function VotingInterface({ voter, onLogout }: VotingInterfaceProps) {
       setSelectedCandidate(voter.voted_for)
       setMyVote(voter.voted_for)
     }
-    checkIfVoted()
     fetchVoteCounts()
-    subscribeToVotes()
+    subscribeToVoters()
   }, [])
-
-  const checkIfVoted = async () => {
-    if (!isSupabaseConfigured) return
-    
-    try {
-      const { data, error } = await supabase
-        .from('votes')
-        .select('*')
-        .eq('user_id', voter.id)
-        .maybeSingle()
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error checking vote status:', error)
-        return
-      }
-
-      if (data) {
-        setHasVoted(true)
-        setSelectedCandidate(data.candidate_name)
-        setMyVote(data.candidate_name)
-      }
-    } catch (error) {
-      console.error('Error checking vote status:', error)
-    }
-  }
 
   const fetchVoteCounts = async () => {
     if (!isSupabaseConfigured) {
@@ -84,14 +58,15 @@ export function VotingInterface({ voter, onLogout }: VotingInterfaceProps) {
     
     try {
       const { data, error } = await supabase
-        .from('votes')
-        .select('candidate_name')
+        .from('voters')
+        .select('voted_for')
+        .not('voted_for', 'is', null)
 
       if (error) throw error
 
       const counts = CANDIDATES.map(candidate => ({
         candidate_name: candidate,
-        count: data?.filter(vote => vote.candidate_name === candidate).length || 0
+        count: data?.filter(voter => voter.voted_for === candidate).length || 0
       }))
 
       setVoteCounts(counts)
@@ -108,13 +83,13 @@ export function VotingInterface({ voter, onLogout }: VotingInterfaceProps) {
     }
   }
 
-  const subscribeToVotes = () => {
+  const subscribeToVoters = () => {
     if (!isSupabaseConfigured) return () => {}
     
     const channel = supabase
-      .channel('votes-changes')
+      .channel('voters-changes')
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'votes' },
+        { event: 'UPDATE', schema: 'public', table: 'voters' },
         () => {
           fetchVoteCounts()
         }
@@ -136,60 +111,30 @@ export function VotingInterface({ voter, onLogout }: VotingInterfaceProps) {
 
     setIsVoting(true)
     try {
-      // Cek sekali lagi apakah user sudah vote (untuk mencegah double voting)
-      const { data: existingVote } = await supabase
-        .from('votes')
-        .select('*')
+      // Cek sekali lagi apakah user sudah vote
+      const { data: currentVoter, error: checkError } = await supabase
+        .from('voters')
+        .select('voted_for')
         .eq('user_id', voter.id)
-        .maybeSingle()
+        .single()
 
-      if (existingVote) {
+      if (checkError) throw checkError
+
+      if (currentVoter?.voted_for) {
         setHasVoted(true)
-        setSelectedCandidate(existingVote.candidate_name)
-        setMyVote(existingVote.candidate_name)
+        setSelectedCandidate(currentVoter.voted_for)
+        setMyVote(currentVoter.voted_for)
         alert('Anda sudah memberikan suara sebelumnya.')
         return
       }
 
-      // Insert vote
-      const { error: voteError } = await supabase
-        .from('votes')
-        .insert([{
-          candidate_name: candidateName,
-          user_id: voter.id
-        }])
-
-      if (voteError) throw voteError
-
-      // Wait for database trigger to execute
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // Verify that the trigger updated voted_for
-      const { data: updatedVoter, error: verifyError } = await supabase
+      // Update voted_for directly
+      const { error: updateError } = await supabase
         .from('voters')
-        .select('voted_for')
+        .update({ voted_for: candidateName })
         .eq('id', voter.id)
-        .single()
-      
-      console.log('Voter after vote:', updatedVoter)
-      
-      // If trigger didn't work or verification failed, do manual update
-      if (verifyError || !updatedVoter?.voted_for || updatedVoter.voted_for !== candidateName) {
-        console.log('Trigger verification failed, doing manual update...')
-        const { error: manualUpdateError } = await supabase
-          .from('voters')
-          .update({ voted_for: candidateName })
-          .eq('id', voter.id)
-        
-        if (manualUpdateError) {
-          console.error('Manual update failed:', manualUpdateError)
-          throw new Error('Failed to update voter choice')
-        } else {
-          console.log('Manual update successful')
-        }
-      } else {
-        console.log('Trigger update successful')
-      }
+
+      if (updateError) throw updateError
 
       // Update local state
       setHasVoted(true)
@@ -204,13 +149,7 @@ export function VotingInterface({ voter, onLogout }: VotingInterfaceProps) {
       
     } catch (error) {
       console.error('Error voting:', error)
-      if (error.code === '23505') {
-        // Unique constraint violation
-        alert('Anda sudah memberikan suara sebelumnya.')
-        await checkIfVoted()
-      } else {
-        alert(`Terjadi kesalahan saat memberikan suara: ${error.message || 'Unknown error'}. Silakan coba lagi.`)
-      }
+      alert(`Terjadi kesalahan saat memberikan suara: ${error.message || 'Unknown error'}. Silakan coba lagi.`)
     } finally {
       setIsVoting(false)
     }
