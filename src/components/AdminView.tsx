@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Users, Eye, ArrowLeft, Search, Filter } from 'lucide-react'
+import { Users, Eye, ArrowLeft, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 interface VoterWithVote {
@@ -35,6 +35,8 @@ export function AdminView({ onBack }: AdminViewProps) {
   const [selectedCandidate, setSelectedCandidate] = useState<string>('all')
   const [totalVoters, setTotalVoters] = useState(0)
   const [totalVoted, setTotalVoted] = useState(0)
+  const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
+  const [candidateVoters, setCandidateVoters] = useState<{[key: string]: VoterWithVote[]}>({})
 
   useEffect(() => {
     fetchVoters()
@@ -42,6 +44,7 @@ export function AdminView({ onBack }: AdminViewProps) {
 
   useEffect(() => {
     filterVoters()
+    groupVotersByCandidate()
   }, [voters, searchTerm, selectedCandidate])
 
   const fetchVoters = async () => {
@@ -91,6 +94,16 @@ export function AdminView({ onBack }: AdminViewProps) {
     setFilteredVoters(filtered)
   }
 
+  const groupVotersByCandidate = () => {
+    const grouped: {[key: string]: VoterWithVote[]} = {}
+    
+    CANDIDATES.forEach(candidate => {
+      grouped[candidate] = voters.filter(voter => voter.voted_for === candidate)
+    })
+    
+    setCandidateVoters(grouped)
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('id-ID', {
       year: 'numeric',
@@ -103,6 +116,10 @@ export function AdminView({ onBack }: AdminViewProps) {
 
   const getCandidateVoteCount = (candidate: string) => {
     return voters.filter(voter => voter.voted_for === candidate).length
+  }
+
+  const toggleCandidateExpansion = (candidate: string) => {
+    setExpandedCandidate(expandedCandidate === candidate ? null : candidate)
   }
 
   if (isLoading) {
@@ -190,6 +207,94 @@ export function AdminView({ onBack }: AdminViewProps) {
                 </select>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Candidate Vote Details */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+          <h2 className="text-xl font-bold text-gray-800 mb-6">Detail Suara per Kandidat</h2>
+          <div className="space-y-4">
+            {CANDIDATES.map(candidate => {
+              const voterList = candidateVoters[candidate] || []
+              const voteCount = voterList.length
+              const isExpanded = expandedCandidate === candidate
+              
+              return (
+                <div key={candidate} className="border border-gray-200 rounded-lg">
+                  <button
+                    onClick={() => toggleCandidateExpansion(candidate)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-semibold text-sm">
+                          {candidate.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="text-left">
+                        <h3 className="font-semibold text-gray-800">{candidate}</h3>
+                        <p className="text-sm text-gray-600">
+                          {voteCount} suara ({totalVoted > 0 ? ((voteCount / totalVoted) * 100).toFixed(1) : '0.0'}%)
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        {voteCount}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
+                  </button>
+                  
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 p-4">
+                      {voterList.length > 0 ? (
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-gray-700 mb-3">
+                            Daftar Pemilih ({voterList.length} orang):
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {voterList.map((voter, index) => (
+                              <div key={voter.id} className="bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
+                                        #{index + 1}
+                                      </span>
+                                      <h5 className="font-medium text-gray-800 text-sm">
+                                        {voter.name}
+                                      </h5>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mb-2">
+                                      📍 {voter.address}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      ⏰ {formatDate(voter.created_at)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 text-sm">
+                            Belum ada yang memilih {candidate}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
